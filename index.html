@@ -6,6 +6,7 @@
     <title>Portfolio Tracker</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon-192x192.png">
     <meta name="theme-color" content="#ffffff"/>
     <link rel="apple-touch-icon" href="icons/icon-192x192.png">
 </head>
@@ -15,12 +16,10 @@
         <div id="portfolio-view" class="view active">
             <nav class="navbar">
                 <div class="nav-left">
-                    <!-- UPDATED IMAGE PATH -->
                     <button id="refresh-btn" class="nav-icon-btn"><img src="assets/refresh.png" alt="Refresh"/></button>
                 </div>
                 <h1 class="nav-title">My Portfolio</h1>
                 <div class="nav-right">
-                    <!-- UPDATED IMAGE PATHS -->
                     <button id="add-transaction-btn" class="nav-icon-btn"><img src="assets/plus.png" alt="Add"/></button>
                     <button id="deposit-funds-btn" class="nav-icon-btn"><img src="assets/dollar.png" alt="Deposit"/></button>
                     <button id="reset-btn" class="nav-icon-btn"><img src="assets/reset.png" alt="Reset"/></button>
@@ -32,7 +31,8 @@
                 <h2>Welcome to Portfolio Tracker</h2>
                 <p>Enter a starting cash balance to begin, or start with $0.</p>
                 <form id="welcome-form">
-                    <input type="number" id="welcome-amount" placeholder="e.g., 10000">
+                    <!-- ADDED step="any" -->
+                    <input type="number" step="any" id="welcome-amount" placeholder="e.g., 10000">
                     <button type="submit" id="get-started-btn">Get Started</button>
                 </form>
             </div>
@@ -55,18 +55,36 @@
             </div>
         </div>
 
-        <!-- MODALS (Code remains the same) -->
+        <!-- MODALS -->
+        <!-- Add Transaction Modal -->
         <div id="add-transaction-view" class="view modal">
              <div class="modal-content">
                 <nav class="navbar"><div class="nav-left"><button id="cancel-transaction-btn" class="nav-text-btn">Cancel</button></div><h1 class="nav-title">New Transaction</h1></nav>
-                <form id="transaction-form" class="app-form"><div class="segmented-control"><input type="radio" id="buy" name="transactionType" value="Buy" checked><label for="buy">Buy</label><input type="radio" id="sell" name="transactionType" value="Sell"><label for="sell">Sell</label></div><div class="form-group" style="position: relative;"><input type="text" id="ticker" placeholder="Stock Ticker (e.g., AAPL)" autocomplete="off"><div id="suggestions" class="suggestions-list"></div></div><input type="number" id="shares" placeholder="Number of Shares"><input type="number" id="price" placeholder="Price per Share"><input type="number" id="commission" placeholder="Commission (%) (Optional)" value="0"><button type="submit" id="save-transaction-btn" disabled>Save Transaction</button></form>
+                <form id="transaction-form" class="app-form">
+                    <div class="segmented-control"><input type="radio" id="buy" name="transactionType" value="Buy" checked><label for="buy">Buy</label><input type="radio" id="sell" name="transactionType" value="Sell"><label for="sell">Sell</label></div>
+                    <div class="form-group" style="position: relative;"><input type="text" id="ticker" placeholder="Stock Ticker (e.g., AAPL)" autocomplete="off"><div id="suggestions" class="suggestions-list"></div></div>
+                    
+                    <!-- ADDED step="any" TO THE THREE INPUTS BELOW -->
+                    <input type="number" step="any" id="shares" placeholder="Number of Shares">
+                    <input type="number" step="any" id="price" placeholder="Price per Share">
+                    <input type="number" step="any" id="commission" placeholder="Commission (%) (Optional)" value="0">
+                    
+                    <button type="submit" id="save-transaction-btn" disabled>Save Transaction</button>
+                </form>
                  <div id="transaction-error" class="error-banner" style="display: none;"></div>
             </div>
         </div>
+
+        <!-- Deposit Funds Modal -->
         <div id="deposit-funds-view" class="view modal">
             <div class="modal-content">
                  <nav class="navbar"><div class="nav-left"><button id="cancel-deposit-btn" class="nav-text-btn">Cancel</button></div><h1 class="nav-title">Deposit Funds</h1></nav>
-                 <form id="deposit-form" class="app-form"><p class="form-footer">This will add cash to your available funds.</p><input type="number" id="deposit-amount" placeholder="Amount to Deposit"><button type="submit" id="add-funds-btn" disabled>Add Funds</button></form>
+                 <form id="deposit-form" class="app-form">
+                    <p class="form-footer">This will add cash to your available funds.</p>
+                    <!-- ADDED step="any" -->
+                    <input type="number" step="any" id="deposit-amount" placeholder="Amount to Deposit">
+                    <button type="submit" id="add-funds-btn" disabled>Add Funds</button>
+                </form>
             </div>
         </div>
     </div>
