@@ -1,0 +1,240 @@
+:root {
+    --primary-text: #000;
+    --secondary-text: #8e8e93;
+    --background-color: #f2f2f7;
+    --modal-background: rgba(0, 0, 0, 0.4);
+    --form-background: #fff;
+    --border-color: #c6c6c8;
+    --tint-color: #007aff;
+    --green-color: #34c759;
+    --red-color: #ff3b30;
+    --gray-background: #ffffff;
+     --container-padding: 16px;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    background-color: var(--background-color);
+    color: var(--primary-text);
+}
+
+#app-container {
+    max-width: 600px;
+    margin: 0 auto;
+    background-color: var(--gray-background);
+    min-height: 100vh;
+}
+
+.view { display: none; }
+.view.active { display: block; }
+
+/* Navbar */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px var(--container-padding);
+    background-color: #f8f8f8;
+    border-bottom: 1px solid var(--border-color);
+}
+.nav-title { font-size: 1.1rem; font-weight: 600; margin: 0; }
+.nav-left, .nav-right { display: flex; align-items: center; gap: 15px; flex: 1; }
+.nav-right { justify-content: flex-end; }
+.nav-icon-btn { background: none; border: none; cursor: pointer; padding: 0; }
+.nav-icon-btn img { width: 24px; height: 24px; }
+.nav-text-btn { background: none; border: none; color: var(--tint-color); font-size: 1rem; cursor: pointer; }
+
+/* Header */
+.header-view {
+    padding: var(--container-padding);
+    margin: var(--container-padding);
+    background-color: #f8f9fa;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.header-subtitle { color: var(--secondary-text); margin: 0 0 4px 0; font-size: 0.9rem; }
+.header-title { font-size: 2rem; font-weight: 700; margin: 0 0 8px 0; transition: color 0.3s ease; }
+.cash-row { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--secondary-text); }
+.cash-row span:last-child { font-weight: 600; color: var(--primary-text); }
+
+/* Holdings */
+.holdings-section { padding: 0 var(--container-padding); }
+.holdings-section h2 { font-size: 1.2rem; }
+.holdings-list { list-style: none; padding: 0; margin: 0; }
+.holding-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.holding-item:last-child { border-bottom: none; }
+.holding-info div, .holding-value div { display: block; }
+.ticker-symbol { font-weight: 600; }
+.shares-count { font-size: 0.9rem; color: var(--secondary-text); }
+.current-value { text-align: right; font-weight: 600; }
+.current-price { text-align: right; font-size: 0.9rem; color: var(--secondary-text); }
+.current-price.positive { color: var(--green-color); }
+
+/* Modals */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--modal-background);
+    display: none; /* Changed from flex */
+    justify-content: center;
+    align-items: flex-end;
+}
+.modal.active {
+    display: flex; /* Show modal when active */
+}
+.modal-content {
+    background-color: var(--background-color);
+    width: 100%;
+    max-width: 600px;
+    border-radius: 16px 16px 0 0;
+    animation: slide-up 0.3s ease;
+}
+
+@keyframes slide-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+/* Forms */
+.app-form { padding: var(--container-padding); }
+.form-group { margin-bottom: 1rem; }
+.app-form input[type="text"], .app-form input[type="number"] {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+}
+.form-footer {
+    font-size: 0.8rem;
+    color: var(--secondary-text);
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+/* Segmented Control */
+.segmented-control {
+    display: flex;
+    margin-bottom: 1rem;
+    border: 1px solid var(--tint-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.segmented-control input[type="radio"] { display: none; }
+.segmented-control label {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    background-color: var(--form-background);
+    color: var(--tint-color);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.segmented-control input[type="radio"]:checked + label {
+    background-color: var(--tint-color);
+    color: #fff;
+}
+
+/* Buttons */
+button {
+    cursor: pointer;
+}
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+#save-transaction-btn, #add-funds-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    background-color: var(--tint-color);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+/* Suggestions */
+.suggestions-list {
+    position: absolute;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    width: 100%;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    z-index: 10;
+    max-height: 200px;
+    overflow-y: auto;
+}
+.suggestion-item {
+    padding: 12px;
+    cursor: pointer;
+}
+.suggestion-item:hover {
+    background-color: var(--background-color);
+}
+
+/* Error Banners */
+.error-banner {
+    padding: 12px;
+    margin: 0 var(--container-padding) var(--container-padding);
+    background-color: #ffebee;
+    color: var(--red-color);
+    border: 1px solid var(--red-color);
+    border-radius: 8px;
+    text-align: center;
+}
+
+/* --- NEW: Welcome View Styles --- */
+#welcome-view {
+    padding: 40px var(--container-padding);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 60vh;
+}
+#welcome-view h2 {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+}
+#welcome-view p {
+    color: var(--secondary-text);
+    margin-bottom: 25px;
+}
+#welcome-form {
+    width: 100%;
+    max-width: 300px;
+}
+#welcome-form input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    box-sizing: border-box;
+    text-align: center;
+    margin-bottom: 15px;
+}
+#welcome-form button {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    background-color: var(--tint-color);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+}
