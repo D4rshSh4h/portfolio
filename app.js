@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const API_KEY = "Z5T1AO0WO4RC6C5I"; // Your Alpha Vantage API key
 
-    // --- DOM Element Lookups (Grouped for robustness) ---
+    // --- DOM Element Lookups ---
     const views = {
         portfolio: document.getElementById('portfolio-view'),
         addTransaction: document.getElementById('add-transaction-view'),
@@ -153,30 +153,63 @@ document.addEventListener('DOMContentLoaded', () => {
         
         reset() {
             localStorage.clear();
-            this.load();
-            renderUI();
+            this.availableCash = 0.0;
+            this.holdings = [];
+            this.isFirstLaunch = true;
+            this.initialFunds = 0.0;
+            this.totalDeposited = 0.0;
+            renderUI(); 
         }
     };
 
     const apiService = {
+        // *** THIS ENTIRE FUNCTION IS NOW CORRECTED ***
         async fetchLatestPrice(symbol) {
             const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`;
             try {
                 const response = await fetch(url);
                 const data = await response.json();
+
+                if (data.Note) {
+                    console.warn("Alpha Vantage API Note:", data.Note);
+                    // This can indicate hitting the API limit, which is not a fatal error for this function.
+                }
+
                 if (data["Global Quote"] && data["Global Quote"]["05. price"]) {
                     let price = parseFloat(data["Global Quote"]["05. price"]);
-                    if (symbol.endsWith(".LON")) {
-                         price /= 100.0;
-                         const gbpToUsd = await this.fetchGBPtoUSDExchangeRate();
-                         if (gbpToUsd) { price *= gbpToUsd; } else { return null; }
+                    
+                    // ***************************************************************
+                    // ***** THIS IS THE CORRECTED CURRENCY CONVERSION LOGIC *****
+                    // It checks for London Stock Exchange tickers.
+                    // ***************************************************************
+                    if (symbol.toUpperCase().endsWith('.L') || symbol.toUpperCase().endsWith('.LON')) {
+                        // 1. Convert from Pence (GBX) to Pounds (GBP)
+                        price = price / 100.0; 
+                        
+                        // 2. Fetch the GBP to USD exchange rate
+                        const gbpToUsdRate = await this.fetchGBPtoUSDExchangeRate();
+
+                        // 3. If the rate is available, convert price to USD
+                        if (gbpToUsdRate) {
+                            price = price * gbpToUsdRate;
+                        } else {
+                            // If the exchange rate fails, we can't determine the price in USD.
+                            console.error(`Could not fetch GBP to USD exchange rate for ${symbol}.`);
+                            return null;
+                        }
                     }
+                    // ***************************************************************
+                    // ***************** END OF CORRECTION *****************************
+                    // ***************************************************************
+
                     return price;
                 }
-                console.error("API Error for " + symbol + ":", data);
-                return null;
+                
+                console.error("Could not find 'Global Quote' in API Response for " + symbol + ":", data);
+                return null; // Return null if the quote is missing.
+
             } catch (error) {
-                console.error("Fetch error for " + symbol + ":", error);
+                console.error("Fetch price network error for " + symbol + ":", error);
                 return null;
             }
         },
@@ -200,6 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (data["Realtime Currency Exchange Rate"] && data["Realtime Currency Exchange Rate"]["5. Exchange Rate"]) {
                      return parseFloat(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"]);
                  }
+                 console.error("Could not find exchange rate in API response:", data);
                  return null;
             } catch (error) {
                 console.error("Exchange rate fetch error:", error);
