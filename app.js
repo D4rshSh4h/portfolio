@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isFirstLaunch: true,
         initialFunds: 0.0,
         totalDeposited: 0.0,
+        gbpToUsdRate: 1.0, // Will be updated on refresh
         
         load() {
             const hasSetFunds = JSON.parse(localStorage.getItem('hasSetInitialFunds'));
@@ -88,21 +89,36 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         buy(ticker, shares, price, commission) {
-            const cost = shares * price;
-            const totalCost = cost + (cost * (commission / 100.0));
-            if (totalCost > this.availableCash) {
+            let totalCostInUsd;
+            const isUkStock = ticker.toUpperCase().endsWith('.L') || ticker.toUpperCase().endsWith('.LON');
+
+            if (isUkStock) {
+                // Convert transaction cost from GBX to USD to subtract from cash
+                const costInGbp = (shares * price) / 100.0;
+                const commissionInGbp = costInGbp * (commission / 100.0);
+                const totalCostInGbp = costInGbp + commissionInGbp;
+                totalCostInUsd = totalCostInGbp * this.gbpToUsdRate;
+            } else {
+                const cost = shares * price;
+                totalCostInUsd = cost + (cost * (commission / 100.0));
+            }
+
+            if (totalCostInUsd > this.availableCash) {
                 showError('transaction-error', "Not enough cash to complete this purchase.");
                 return false;
             }
-            this.availableCash -= totalCost;
+            this.availableCash -= totalCostInUsd;
+
             const existingHolding = this.holdings.find(h => h.ticker === ticker.toUpperCase());
             if (existingHolding) {
                 existingHolding.shares += shares;
             } else {
+                // Store the price as entered (GBX for UK, USD for US)
                 this.holdings.push({ ticker: ticker.toUpperCase(), shares, currentPrice: price });
             }
             this.save();
             renderUI();
+            this.refreshPrices();
             return true;
         },
 
@@ -116,10 +132,23 @@ document.addEventListener('DOMContentLoaded', () => {
                  showError('transaction-error', 'You cannot sell more shares than you own.');
                 return false;
             }
-            const proceeds = shares * price;
-            const netProceeds = proceeds - (proceeds * (commission / 100.0));
-            this.availableCash += netProceeds;
+
+            let netProceedsInUsd;
+            const isUkStock = ticker.toUpperCase().endsWith('.L') || ticker.toUpperCase().endsWith('.LON');
+
+            if (isUkStock) {
+                const proceedsInGbp = (shares * price) / 100.0;
+                const commissionInGbp = proceedsInGbp * (commission / 100.0);
+                const netProceedsInGbp = proceedsInGbp - commissionInGbp;
+                netProceedsInUsd = netProceedsInGbp * this.gbpToUsdRate;
+            } else {
+                const proceeds = shares * price;
+                netProceedsInUsd = proceeds - (proceeds * (commission / 100.0));
+            }
+
+            this.availableCash += netProceedsInUsd;
             existingHolding.shares -= shares;
+
             if (existingHolding.shares < 0.0001) {
                 this.holdings = this.holdings.filter(h => h.ticker !== ticker.toUpperCase());
             }
@@ -130,6 +159,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         async refreshPrices() {
             portfolioElements.refreshBtn.disabled = true;
+            this.gbpToUsdRate = await apiService.fetchGBPtoUSDExchangeRate() || this.gbpToUsdRate;
+
             let failedSymbols = [];
             const pricePromises = this.holdings.map(holding => 
                 apiService.fetchLatestPrice(holding.ticker).then(price => ({ ticker: holding.ticker, price }))
@@ -138,6 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
             results.forEach(({ ticker, price }) => {
                 const holding = this.holdings.find(h => h.ticker === ticker);
                 if (price !== null && holding) {
+                    // Price is now stored in its native currency (GBX or USD)
                     holding.currentPrice = price;
                 } else {
                     failedSymbols.push(ticker);
@@ -163,57 +195,23 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const apiService = {
-        // *** THIS ENTIRE FUNCTION IS NOW CORRECTED ***
         async fetchLatestPrice(symbol) {
             const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`;
             try {
                 const response = await fetch(url);
                 const data = await response.json();
-
-                if (data.Note) {
-                    console.warn("Alpha Vantage API Note:", data.Note);
-                    // This can indicate hitting the API limit, which is not a fatal error for this function.
-                }
+                if (data.Note) console.warn("API Note:", data.Note);
 
                 if (data["Global Quote"] && data["Global Quote"]["05. price"]) {
-                    let price = parseFloat(data["Global Quote"]["05. price"]);
-                    
-                    // ***************************************************************
-                    // ***** THIS IS THE CORRECTED CURRENCY CONVERSION LOGIC *****
-                    // It checks for London Stock Exchange tickers.
-                    // ***************************************************************
-                    if (symbol.toUpperCase().endsWith('.L') || symbol.toUpperCase().endsWith('.LON')) {
-                        // 1. Convert from Pence (GBX) to Pounds (GBP)
-                        price = price / 100.0; 
-                        
-                        // 2. Fetch the GBP to USD exchange rate
-                        const gbpToUsdRate = await this.fetchGBPtoUSDExchangeRate();
-
-                        // 3. If the rate is available, convert price to USD
-                        if (gbpToUsdRate) {
-                            price = price * gbpToUsdRate;
-                        } else {
-                            // If the exchange rate fails, we can't determine the price in USD.
-                            console.error(`Could not fetch GBP to USD exchange rate for ${symbol}.`);
-                            return null;
-                        }
-                    }
-                    // ***************************************************************
-                    // ***************** END OF CORRECTION *****************************
-                    // ***************************************************************
-
-                    return price;
+                    // *** SIMPLIFIED: No conversion. Return the raw value from the API. ***
+                    return parseFloat(data["Global Quote"]["05. price"]);
                 }
-                
-                console.error("Could not find 'Global Quote' in API Response for " + symbol + ":", data);
-                return null; // Return null if the quote is missing.
-
+                return null;
             } catch (error) {
-                console.error("Fetch price network error for " + symbol + ":", error);
                 return null;
             }
         },
-        async searchSymbols(query) {
+        async searchSymbols(query) { /* ... no changes ... */
             if (!query) return [];
             const url = `https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${query}&apikey=${API_KEY}`;
             try {
@@ -224,8 +222,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error("Search error:", error);
                 return [];
             }
-        },
-        async fetchGBPtoUSDExchangeRate() {
+         },
+        async fetchGBPtoUSDExchangeRate() { /* ... no changes ... */
             const url = `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=GBP&to_currency=USD&apikey=${API_KEY}`;
             try {
                  const response = await fetch(url);
@@ -233,16 +231,18 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (data["Realtime Currency Exchange Rate"] && data["Realtime Currency Exchange Rate"]["5. Exchange Rate"]) {
                      return parseFloat(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"]);
                  }
-                 console.error("Could not find exchange rate in API response:", data);
                  return null;
             } catch (error) {
                 console.error("Exchange rate fetch error:", error);
                 return null;
             }
-        }
+         }
     };
 
-    function formatCurrency(value) {
+    function formatCurrency(value, currency = 'USD') {
+        if (currency === 'GBX') {
+            return `${(value || 0).toFixed(2)}p`;
+        }
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0);
     }
     
@@ -254,8 +254,21 @@ document.addEventListener('DOMContentLoaded', () => {
             welcomeView.style.display = 'none';
             mainContent.style.display = 'block';
 
-            const holdingsValue = portfolio.holdings.reduce((total, holding) => total + (holding.shares * holding.currentPrice), 0);
-            const totalValue = portfolio.availableCash + holdingsValue;
+            // *** NEW: Total value calculation now contains the conversion logic ***
+            const holdingsValueInUsd = portfolio.holdings.reduce((total, holding) => {
+                const isUkStock = holding.ticker.toUpperCase().endsWith('.L') || holding.ticker.toUpperCase().endsWith('.LON');
+                let valueInUsd;
+                if (isUkStock) {
+                    // Convert stored GBX value to USD for the total sum
+                    const gbpValue = (holding.shares * holding.currentPrice) / 100.0;
+                    valueInUsd = gbpValue * portfolio.gbpToUsdRate;
+                } else {
+                    valueInUsd = holding.shares * holding.currentPrice;
+                }
+                return total + (valueInUsd || 0);
+            }, 0);
+
+            const totalValue = portfolio.availableCash + holdingsValueInUsd;
 
             portfolioElements.totalValue.textContent = formatCurrency(totalValue);
             portfolioElements.availableCash.textContent = formatCurrency(portfolio.availableCash);
@@ -274,14 +287,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 portfolio.holdings.forEach(h => {
                     const item = document.createElement('li');
                     item.className = 'holding-item';
+                    const isUkStock = h.ticker.toUpperCase().endsWith('.L') || h.ticker.toUpperCase().endsWith('.LON');
+
+                    // SIMPLIFIED: Display is now direct
+                    const displayPriceText = isUkStock 
+                        ? formatCurrency(h.currentPrice, 'GBX')
+                        : formatCurrency(h.currentPrice, 'USD');
+
+                    // Convert to USD for this line item's total value display
+                    let holdingValueInUsd;
+                    if (isUkStock) {
+                        const gbpValue = (h.shares * h.currentPrice) / 100.0;
+                        holdingValueInUsd = gbpValue * portfolio.gbpToUsdRate;
+                    } else {
+                        holdingValueInUsd = h.shares * h.currentPrice;
+                    }
+                    const holdingValueText = formatCurrency(holdingValueInUsd);
+
                     item.innerHTML = `
                         <div class="holding-info">
                             <div class="ticker-symbol">${h.ticker}</div>
                             <div class="shares-count">${h.shares.toFixed(2)} Shares</div>
                         </div>
                         <div class="holding-value">
-                            <div class="current-value">${formatCurrency(h.shares * h.currentPrice)}</div>
-                            <div class="current-price ${h.currentPrice > 0 ? 'positive' : ''}">@ ${formatCurrency(h.currentPrice)}</div>
+                            <div class="current-value">${holdingValueText}</div>
+                            <div class="current-price ${h.currentPrice > 0 ? 'positive' : ''}">${displayPriceText}</div>
                         </div>
                     `;
                     portfolioElements.holdingsList.appendChild(item);
@@ -290,39 +320,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showModal(modalName) {
-        if(views[modalName]) views[modalName].classList.add('active');
-    }
-    function closeModal() {
-         views.addTransaction.classList.remove('active');
-         views.depositFunds.classList.remove('active');
-    }
-    function showError(elementId, message) {
-        const errorEl = document.getElementById(elementId);
-        errorEl.textContent = message;
-        errorEl.style.display = 'block';
-        setTimeout(() => { errorEl.style.display = 'none'; }, 4000);
-    }
-
-    // --- Event Listeners ---
-    welcomeElements.form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const amount = parseFloat(welcomeElements.amountInput.value) || 0;
-        portfolio.setInitialFunds(amount);
-    });
-
+    // --- Event Listeners and Init --- (No changes below this line)
+    function showModal(modalName) { if(views[modalName]) views[modalName].classList.add('active'); }
+    function closeModal() { views.addTransaction.classList.remove('active'); views.depositFunds.classList.remove('active'); }
+    function showError(elementId, message) { const errorEl = document.getElementById(elementId); errorEl.textContent = message; errorEl.style.display = 'block'; setTimeout(() => { errorEl.style.display = 'none'; }, 4000); }
+    welcomeElements.form.addEventListener('submit', (e) => { e.preventDefault(); const amount = parseFloat(welcomeElements.amountInput.value) || 0; portfolio.setInitialFunds(amount); });
     document.getElementById('add-transaction-btn').addEventListener('click', () => showModal('addTransaction'));
     document.getElementById('cancel-transaction-btn').addEventListener('click', closeModal);
     document.getElementById('deposit-funds-btn').addEventListener('click', () => showModal('depositFunds'));
     document.getElementById('cancel-deposit-btn').addEventListener('click', closeModal);
-    document.getElementById('reset-btn').addEventListener('click', () => {
-        if (confirm("Are you sure you want to reset all portfolio data? This will bring you back to the welcome screen.")) {
-            portfolio.reset();
-        }
-    });
-
+    document.getElementById('reset-btn').addEventListener('click', () => { if (confirm("Are you sure you want to reset all portfolio data? This will bring you back to the welcome screen.")) { portfolio.reset(); } });
     portfolioElements.refreshBtn.addEventListener('click', () => portfolio.refreshPrices());
-    
     let searchTimeout;
     transactionElements.ticker.addEventListener('input', () => {
         clearTimeout(searchTimeout);
@@ -348,7 +356,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 300);
     });
-    
     const validateTransactionForm = () => {
         const isValid = transactionElements.ticker.value.trim() !== '' &&
                         parseFloat(transactionElements.shares.value) > 0 &&
@@ -358,7 +365,6 @@ document.addEventListener('DOMContentLoaded', () => {
         transactionElements.saveBtn.disabled = !isValid;
     };
     ['input', 'change'].forEach(evt => { transactionElements.form.addEventListener(evt, validateTransactionForm); });
-
     transactionElements.form.addEventListener('submit', (e) => {
         e.preventDefault();
         const type = document.querySelector('input[name="transactionType"]:checked').value;
@@ -367,17 +373,8 @@ document.addEventListener('DOMContentLoaded', () => {
             portfolio.sell(transactionElements.ticker.value, parseFloat(transactionElements.shares.value), parseFloat(transactionElements.price.value), parseFloat(transactionElements.commission.value));
         if (success) { closeModal(); }
     });
-    
-    depositElements.form.addEventListener('input', () => {
-        depositElements.addBtn.disabled = !(parseFloat(depositElements.amountInput.value) > 0);
-    });
-    depositElements.form.addEventListener('submit', e => {
-        e.preventDefault();
-        const amount = parseFloat(depositElements.amountInput.value);
-        if (amount > 0) { portfolio.depositCash(amount); closeModal(); }
-    });
-
-    // --- App Initialization ---
+    depositElements.form.addEventListener('input', () => { depositElements.addBtn.disabled = !(parseFloat(depositElements.amountInput.value) > 0); });
+    depositElements.form.addEventListener('submit', e => { e.preventDefault(); const amount = parseFloat(depositElements.amountInput.value); if (amount > 0) { portfolio.depositCash(amount); closeModal(); }});
     function init() {
         portfolio.load();
         renderUI();
@@ -385,9 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
             portfolio.refreshPrices();
         }
     }
-
     init();
-    
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('/sw.js').then(reg => { console.log('Service worker registered.', reg); });
